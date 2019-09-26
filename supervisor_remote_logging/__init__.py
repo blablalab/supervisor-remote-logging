@@ -16,20 +16,38 @@ import docker
 
 # http://docs.python.org/library/logging.html#logrecord-attributes
 RESERVED_ATTRS = (
-    'args', 'asctime', 'created', 'exc_info', 'exc_text', 'filename',
-    'funcName', 'levelname', 'levelno', 'lineno', 'module',
-    'msecs', 'message', 'msg', 'name', 'pathname', 'process',
-    'processName', 'relativeCreated', 'thread', 'threadName'
+    "args",
+    "asctime",
+    "created",
+    "exc_info",
+    "exc_text",
+    "filename",
+    "funcName",
+    "levelname",
+    "levelno",
+    "lineno",
+    "module",
+    "msecs",
+    "message",
+    "msg",
+    "name",
+    "pathname",
+    "process",
+    "processName",
+    "relativeCreated",
+    "thread",
+    "threadName",
 )
 
 RESERVED_ATTR_HASH = dict(zip(RESERVED_ATTRS, RESERVED_ATTRS))
 
 
 class FormatterMixin(object):
-    HOSTNAME = re.sub(r':\d+$', '', os.environ.get('SITE_DOMAIN', socket.gethostname()))
-    DEFAULT_DATE_FORMAT = '%Y-%m-%dT%H:%M:%S%z'
-    DEFAULT_MESSAGE_FORMAT = '%(asctime)s %(hostname)s %(name)s[%(process)d]: %(message)s'
-
+    HOSTNAME = re.sub(r":\d+$", "", os.environ.get("SITE_DOMAIN", socket.gethostname()))
+    DEFAULT_DATE_FORMAT = "%Y-%m-%dT%H:%M:%S%z"
+    DEFAULT_MESSAGE_FORMAT = (
+        "%(asctime)s %(hostname)s %(name)s[%(process)d]: %(message)s"
+    )
 
     def message_format(self):
         """
@@ -37,10 +55,11 @@ class FormatterMixin(object):
         os.environ['MESSAGE_FORMAT'] or
         DEFAULT_MESSAGE_FORMAT as default.
         """
-        fmt = os.environ.get('MESSAGE_FORMAT', self.DEFAULT_MESSAGE_FORMAT)
+        fmt = os.environ.get("MESSAGE_FORMAT", self.DEFAULT_MESSAGE_FORMAT)
 
-        return fmt.replace('%(hostname)s', self.HOSTNAME)  # Accepts hostname in the form of %(hostname)s
-
+        return fmt.replace(
+            "%(hostname)s", self.HOSTNAME
+        )  # Accepts hostname in the form of %(hostname)s
 
     def date_format(self):
         """
@@ -48,14 +67,14 @@ class FormatterMixin(object):
         os.environ['DATE_FORMAT'] or
         DEFAULT_DATE_FORMAT as default.
         """
-        return os.environ.get('DATE_FORMAT', self.DEFAULT_DATE_FORMAT)
+        return os.environ.get("DATE_FORMAT", self.DEFAULT_DATE_FORMAT)
 
 
 class DockerJsonFormatter(logging.Formatter, FormatterMixin):
-    CONTAINER_ID   = ""
+    CONTAINER_ID = ""
     CONTAINER_JSON = {}
-    IMAGE_ID       = ""
-    IMAGE_TAG      = ""
+    IMAGE_ID = ""
+    IMAGE_TAG = ""
 
     def __init__(self, *args, **kwargs):
         """
@@ -66,33 +85,33 @@ class DockerJsonFormatter(logging.Formatter, FormatterMixin):
         self.json_default = kwargs.pop("json_default", None)
         self.json_encoder = kwargs.pop("json_encoder", None)
 
-        kwargs['fmt'] = self.message_format()
-        kwargs['datefmt'] = self.date_format()
+        kwargs["fmt"] = self.message_format()
+        kwargs["datefmt"] = self.date_format()
 
         super(DockerJsonFormatter, self).__init__(*args, **kwargs)
 
         if not self.json_encoder and not self.json_default:
+
             def _default_json_handler(obj):
-                '''Prints dates in ISO format'''
+                """Prints dates in ISO format"""
                 if isinstance(obj, datetime.datetime):
-                    return obj.strftime(self.datefmt or '%Y-%m-%dT%H:%M')
+                    return obj.strftime(self.datefmt or "%Y-%m-%dT%H:%M")
                 elif isinstance(obj, datetime.date):
-                    return obj.strftime('%Y-%m-%d')
+                    return obj.strftime("%Y-%m-%d")
                 elif isinstance(obj, datetime.time):
-                    return obj.strftime('%H:%M')
+                    return obj.strftime("%H:%M")
                 return str(obj)
+
             self.json_default = _default_json_handler
 
         self._required_fields = self.parse()
         self._skip_fields = dict(zip(self._required_fields, self._required_fields))
         self._skip_fields.update(RESERVED_ATTR_HASH)
 
-
     def parse(self):
         """Parses format string looking for substitutions"""
-        standard_formatters = re.compile(r'\((.+?)\)', re.IGNORECASE)
+        standard_formatters = re.compile(r"\((.+?)\)", re.IGNORECASE)
         return standard_formatters.findall(self._fmt)
-
 
     def format(self, record):
         # Log Format
@@ -111,74 +130,82 @@ class DockerJsonFormatter(logging.Formatter, FormatterMixin):
         record.message = record.getMessage()
 
         log_record = {}
-        log_record['hostname']     = self.HOSTNAME
-        log_record['stream']       = 'stdout'
-        log_record['pid']          = record.process
+        log_record["hostname"] = self.HOSTNAME
+        log_record["stream"] = "stdout"
+        log_record["pid"] = record.process
 
         if record.processName:
-            log_record['programname'] = record.processName
+            log_record["programname"] = record.processName
 
         if self.CONTAINER_ID:
-            log_record['container_id'] = self.CONTAINER_ID
+            log_record["container_id"] = self.CONTAINER_ID
 
         if self.IMAGE_ID:
-            log_record['image_id'] = self.IMAGE_ID
+            log_record["image_id"] = self.IMAGE_ID
 
         if self.IMAGE_TAG:
-            log_record['image_tag'] = self.IMAGE_TAG
+            log_record["image_tag"] = self.IMAGE_TAG
 
-        if 'asctime' in self._required_fields:
-            log_record['time'] = self.formatTime(record, self.datefmt)
+        if "asctime" in self._required_fields:
+            log_record["time"] = self.formatTime(record, self.datefmt)
 
         if record.message:
-            log_record['log'] = record.message
+            log_record["log"] = record.message
 
-        service_env = os.environ.get('SERVICE_ENV', None)
+        service_env = os.environ.get("SERVICE_ENV", None)
         if service_env:
-            log_record['service_env'] = service_env
+            log_record["service_env"] = service_env
 
-        service_name = os.environ.get('SERVICE_NAME', None)
+        service_name = os.environ.get("SERVICE_NAME", None)
         if service_name:
-            log_record['service_name'] = service_name
+            log_record["service_name"] = service_name
 
-        return json.dumps(log_record, default=self.json_default, cls=self.json_encoder) + '\n'
+        return (
+            json.dumps(log_record, default=self.json_default, cls=self.json_encoder)
+            + "\n"
+        )
 
 
 class SyslogDockerJsonFormatter(logging.Formatter, FormatterMixin):
     def __init__(self):
-        super(SyslogDockerJsonFormatter, self).__init__(fmt=self.message_format(), datefmt=self.date_format())
+        super(SyslogDockerJsonFormatter, self).__init__(
+            fmt=self.message_format(), datefmt=self.date_format()
+        )
 
     def format(self, record):
         json_message = DockerJsonFormatter().format(record)
-        json_data    = json.loads(json_message)
+        json_data = json.loads(json_message)
 
         syslog_message = self.message_format()
-        syslog_message = syslog_message.replace('%(asctime)s', json_data['time'])
-        syslog_message = syslog_message.replace('%(name)s', record.name)
-        syslog_message = syslog_message.replace('%(process)d', str(record.process))
-        syslog_message = syslog_message.replace('%(message)s', json_message)
+        syslog_message = syslog_message.replace("%(asctime)s", json_data["time"])
+        syslog_message = syslog_message.replace("%(name)s", record.name)
+        syslog_message = syslog_message.replace("%(process)d", str(record.process))
+        syslog_message = syslog_message.replace("%(message)s", json_message)
 
         if record.processName:
-            syslog_message = syslog_message.replace('%(processName)s', str(record.processName))
+            syslog_message = syslog_message.replace(
+                "%(processName)s", str(record.processName)
+            )
 
-        return syslog_message + '\n'
+        return syslog_message + "\n"
 
 
 class SyslogFormatter(logging.Formatter, FormatterMixin):
     def __init__(self):
-        super(SyslogFormatter, self).__init__(fmt=self.message_format(), datefmt=self.date_format())
-
+        super(SyslogFormatter, self).__init__(
+            fmt=self.message_format(), datefmt=self.date_format()
+        )
 
     def format(self, record):
         message = super(SyslogFormatter, self).format(record)
-        return message.replace('\n', ' ') + '\n'
+        return message.replace("\n", " ") + "\n"
 
 
 class TcpJsonHandler(object):
     def __init__(self, address):
         self.retry_interval = 0
-        self.address        = address
-        self.server         = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.address = address
+        self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
         try:
             self.server.connect(self.address)
@@ -193,7 +220,10 @@ class TcpJsonHandler(object):
         self.server.connect(self.address)
 
     def reconnect_after_backing_off(self):
-        print("WARNING: Failed to connect to {}. Reconnecting...".format(self.address), file=sys.stderr)
+        print(
+            "WARNING: Failed to connect to {}. Reconnecting...".format(self.address),
+            file=sys.stderr,
+        )
         time.sleep(2 ** self.backoff_interval())
         self.reconnect()
 
@@ -222,6 +252,7 @@ class SysLogHandler(logging.handlers.SysLogHandler):
     """
     A SysLogHandler not appending NUL character to messages
     """
+
     append_nul = False
 
 
@@ -230,7 +261,7 @@ def get_headers(line):
     Parse Supervisor message headers.
     """
 
-    return dict([x.split(':') for x in line.split()])
+    return dict([x.split(":") for x in line.split()])
 
 
 def eventdata(payload):
@@ -238,7 +269,7 @@ def eventdata(payload):
     Parse a Supervisor event.
     """
 
-    headerinfo, data = payload.split('\n', 1)
+    headerinfo, data = payload.split("\n", 1)
     headers = get_headers(headerinfo)
     return headers, data
 
@@ -249,88 +280,98 @@ def supervisor_events(stdin, stdout):
     """
 
     while True:
-        stdout.write('READY\n')
+        stdout.write("READY\n")
         stdout.flush()
 
         line = stdin.readline()
         headers = get_headers(line)
 
-        payload = stdin.read(int(headers['len']))
+        payload = stdin.read(int(headers["len"]))
         event_headers, event_data = eventdata(payload)
 
         yield event_headers, event_data
 
-        stdout.write('RESULT 2\nOK')
+        stdout.write("RESULT 2\nOK")
         stdout.flush()
 
 
 def new_syslog_handler():
-    host     = os.environ.get('SYSLOG_SERVER', '127.0.0.1')
-    port     = int(os.environ.get('SYSLOG_PORT', '514'))
-    proto    = os.environ.get('SYSLOG_PROTO', 'udp')
-    socktype = socket.SOCK_DGRAM if proto == 'udp' else socket.SOCK_STREAM
+    host = os.environ.get("SYSLOG_SERVER", "127.0.0.1")
+    port = int(os.environ.get("SYSLOG_PORT", "514"))
+    proto = os.environ.get("SYSLOG_PROTO", "udp")
+    socktype = socket.SOCK_DGRAM if proto == "udp" else socket.SOCK_STREAM
 
-    return SysLogHandler(
-        address=(host, port),
-        socktype=socktype,
-    )
+    return SysLogHandler(address=(host, port), socktype=socktype)
 
 
 def new_tcp_json_handler():
-    host = os.environ.get('JSON_SERVER', '127.0.0.1')
-    port = int(os.environ.get('JSON_PORT', '22552'))
+    host = os.environ.get("JSON_SERVER", "127.0.0.1")
+    port = int(os.environ.get("JSON_PORT", "22552"))
 
     return TcpJsonHandler((host, port))
 
 
-def new_handler(log_type='syslog'):
+def new_stdout_handler():
+    return logging.StreamHandler(sys.stdout)
+
+
+def new_handler(log_type="syslog"):
     handler = None
 
-    if log_type == 'syslog_json' or log_type == 'syslog':
+    if log_type == "syslog_json" or log_type == "syslog":
         handler = new_syslog_handler()
-    elif log_type == 'tcp_json':
+    elif log_type == "tcp_json":
         handler = new_tcp_json_handler()
+    elif log_type == "stdout_json":
+        handler = new_stdout_handler()
 
-    if log_type == 'tcp_json':
+    if log_type == "tcp_json":
         handler.setFormatter(DockerJsonFormatter())
-    elif log_type == 'syslog_json':
+    elif log_type == "syslog_json":
         handler.setFormatter(SyslogDockerJsonFormatter())
-    elif log_type == 'syslog':
+    elif log_type == "syslog":
         handler.setFormatter(SyslogFormatter())
+    elif log_type == "stdout_json":
+        handler.setFormatter(DockerJsonFormatter())
 
     return handler
 
 
 def main():
-    '''
+    """
     3 different log type:
     * syslog
     * syslog_json
     * tcp_json
-    '''
-    log_type = os.environ.get('SUPERVISOR_LOG_TYPE', 'syslog')
-    handler  = new_handler(log_type)
+    * stdout_json
+    """
+    log_type = os.environ.get("SUPERVISOR_LOG_TYPE", "syslog")
+    handler = new_handler(log_type)
 
     if handler:
-        docker_client = docker.Client(base_url="tcp://{0}:2375".format(DockerJsonFormatter.HOSTNAME), timeout=10)
-
-        docker_cid = os.environ.get('DOCKER_CID', '')
+        docker_cid = os.environ.get("DOCKER_CID", "")
 
         if docker_cid:
-            DockerJsonFormatter.CONTAINER_ID   = docker_cid
-            DockerJsonFormatter.CONTAINER_JSON = docker_client.inspect_container(DockerJsonFormatter.CONTAINER_ID)
-            DockerJsonFormatter.IMAGE_ID       = DockerJsonFormatter.CONTAINER_JSON['Image']
+            docker_client = docker.Client(
+                base_url="tcp://{0}:2375".format(DockerJsonFormatter.HOSTNAME), timeout=10
+            )
+
+            DockerJsonFormatter.CONTAINER_ID = docker_cid
+            DockerJsonFormatter.CONTAINER_JSON = docker_client.inspect_container(
+                DockerJsonFormatter.CONTAINER_ID
+            )
+            DockerJsonFormatter.IMAGE_ID = DockerJsonFormatter.CONTAINER_JSON["Image"]
 
             images = docker_client.images()
             for image in images:
-                if image['Id'] == DockerJsonFormatter.IMAGE_ID:
-                    image_repo_tags = image['RepoTags']
+                if image["Id"] == DockerJsonFormatter.IMAGE_ID:
+                    image_repo_tags = image["RepoTags"]
                     if len(image_repo_tags) > 0:
                         DockerJsonFormatter.IMAGE_TAG = image_repo_tags[0]
 
         for event_headers, event_data in supervisor_events(sys.stdin, sys.stdout):
             event = logging.LogRecord(
-                name=event_headers['processname'],
+                name=event_headers["processname"],
                 level=logging.INFO,
                 pathname=None,
                 lineno=0,
@@ -338,11 +379,13 @@ def main():
                 args=(),
                 exc_info=None,
             )
-            event.process = int(event_headers['pid'])
-            event.processName = event_headers['processname'] or os.getenv('SUPERVISOR_PROCESS_NAME', 'unknown')
+            event.process = int(event_headers["pid"])
+            event.processName = event_headers["processname"] or os.getenv(
+                "SUPERVISOR_PROCESS_NAME", "unknown"
+            )
 
             handler.handle(event)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
